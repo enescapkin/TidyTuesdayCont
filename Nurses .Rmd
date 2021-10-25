@@ -1,0 +1,93 @@
+---
+title: "Nurses"
+author: "Enes"
+date: "10/20/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(gtExtras)
+library(gt)
+webshot::install_phantomjs()
+library(scales)
+
+nurses <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-10-05/nurses.csv")
+```
+
+```{r}
+salary1998 <- nurses %>%
+  filter(State != "Guam",
+         State != "Virgin Islands") %>%
+  select(State, Annual.Salary.Avg, Year) %>%
+  filter(Year == c("1998")) %>%
+           view()
+
+percentage_change_in_salary <- nurses %>%
+  filter(State != "Guam",
+         State != "Virgin Islands") %>%
+  select(State, Annual.Salary.Avg, Year) %>%
+  filter(Year == c("2020")) %>%
+  inner_join(salary1998, by = "State") %>%
+  mutate(diff1 = ((Annual.Salary.Avg.x - Annual.Salary.Avg.y) / Annual.Salary.Avg.y) * 100) %>%
+  select(State, diff1)
+
+class(percentage_change_in_salary$diff1)
+
+spark <- nurses %>%
+  filter(State != "Guam",
+         State != "Virgin Islands") %>%
+  select(State, Annual.Salary.Avg, Year)%>%
+  arrange(Annual.Salary.Avg, Year) %>%
+  group_by(State) %>%
+  summarize(yearly_changes = list(Annual.Salary.Avg))
+
+annual_sal_2020 <- 
+  nurses %>%
+  filter(State != "Guam",
+         State != "Virgin Islands") %>%
+  select(Year, Annual.Salary.Avg, State) %>%
+  filter(Year == "2020")
+
+nurses %>%
+  filter(State != "Guam",
+         State != "Virgin Islands") %>%
+  select(State, Total.Employed.RN, Hourly.Wage.Avg, Annual.Salary.Avg, Year)%>%
+  group_by(State) %>%
+  summarize(Total.Employed.RN = floor(mean(Total.Employed.RN)),
+            Hourly.Wage.Avg = trunc(mean(Hourly.Wage.Avg)),
+            Annual.Salary.Avg = floor(mean(Annual.Salary.Avg))) %>%
+  ungroup() %>%
+  inner_join(spark, by = "State") %>%
+  inner_join(percentage_change_in_salary, by = "State") %>%
+  inner_join(annual_sal_2020, by = "State") %>%
+  select(-Annual.Salary.Avg.x, -Year)%>%
+  relocate(Annual.Salary.Avg.y, .before = yearly_changes) %>%
+  mutate(diff1 = trunc(diff1),
+         Hourly.Wage.Avg = paste0("$", Hourly.Wage.Avg)) %>%
+  arrange(-Annual.Salary.Avg.y) %>%
+  gt() %>%
+  cols_label(Total.Employed.RN= md("**Total Employess**"),
+             Hourly.Wage.Avg = md("**Hourly Wage**"),
+            Annual.Salary.Avg.y = md("**Anunual Salary**"),
+            yearly_changes = md ("**Salary 1980-2020**"),
+            diff1 = md("**% Change of Salary**")) %>%
+  gt_sparkline(yearly_changes) %>%
+  tab_header(title = "How much Nurses are making across different USA states", subtitle = "How many nurses are employed across the US Stateas and how well they are paid in differents States.") %>%
+  gt_hulk_col_numeric(Annual.Salary.Avg.y, trim = T) %>%
+  gt_color_rows(diff1)%>%
+  tab_source_note(source_note = md("**Data: Data.World via TidyTuesday \n Data Viz: Enes Capkin**")) %>%
+  tab_style(cell_fill(color = "lightgrey"), locations = list(cells_body(columns = State), cells_column_labels(columns = State))) %>%
+  gt::cols_align(Hourly.Wage.Avg, align = "right") %>%
+  gt::cols_align(diff1, align = "right" ) %>%
+  gt_theme_538() %>%
+  gtsave("table.png")
+  
+```
+
