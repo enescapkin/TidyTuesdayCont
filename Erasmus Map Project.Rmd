@@ -1,0 +1,106 @@
+---
+title: "Erasmus"
+author: "Enes"
+date: "3/15/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(ggmap)
+library(mapdata)
+library(sf)
+library(rnaturalearth) #ne_countries function
+library(rnaturalearthdata)
+library(showtext)
+
+erasmus <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-03-08/erasmus.csv")
+```
+
+```{r}
+text_font <- 'Source Code Pro'
+
+title_font <- 'Luckiest Guy'
+
+font_add_google(text_font, text_font)
+
+font_add_google(title_font, title_font)
+
+dev.off()
+
+showtext_auto()
+```
+
+
+```{r}
+glimpse(erasmus)
+
+country_codes <- union(erasmus$sending_country_code, erasmus$receiving_country_code)
+
+erasmus_at <- erasmus %>%
+  select(academic_year, participant_gender, sending_country_code, receiving_country_code) %>%
+  filter(sending_country_code == "AT") %>%
+  filter(receiving_country_code != "AT") %>%
+  mutate(head = 1) %>%
+  filter(receiving_country_code != "CY") %>%
+  group_by(receiving_country_code) %>%
+  summarise(head = sum(head)) %>%
+  mutate(tot = sum(head)) %>%
+  mutate(percentage = (head/tot)* 100) %>%
+  arrange(-percentage) %>%
+  rename(wb_a2 = receiving_country_code)
+
+erasmus_at$wb_a2 <- gsub("UK", "GB" , x = erasmus_at$wb_a2)
+erasmus_at$wb_a2 <- gsub("EL", "GR" , x = erasmus_at$wb_a2)
+
+erasmus_at
+
+europe <- ne_countries(scale = "medium", returnclass = "sf") %>%
+  filter(continent == "Europe" | name == "Turkey") 
+ 
+
+
+#united kingdom GB, greece EL,
+
+erasmus_at_to <- europe %>%
+  select(wb_a2, subunit) %>%
+  right_join(erasmus_at, by = "wb_a2") 
+
+erasmus_at_to$percentage <- round(erasmus_at_to$percentage, digits = 1)
+
+ggplot(erasmus_at_to) +
+  geom_sf(data = europe, aes(geometry = geometry), colour = "snow3", lwd = 2.5) +
+  geom_sf(aes(fill = percentage)) +
+  geom_sf_text(aes(label = percentage), size = 2.7, color = "white") +
+  coord_sf(xlim = c(-25,40), ylim = c(35,70)) +
+   scale_fill_gradientn(
+    colors = c("rosybrown2", "red2")
+    ) +
+  #theme_void() +
+  theme(legend.position = "right") +
+  labs(title = "Austrian Students' Country Preference in Erasmus Mobility",
+       subtitle = "Austrian students mobility exchange between 2016-2020 Within Europe", caption = "TidyTuesday Project, Dataviz | Enes Capkin", fill = "Percentage of Student") +
+  theme(plot.title.position = "plot",
+        plot.title = element_text(size = 15,family = title_font),
+        plot.subtitle = element_text(family = text_font),
+        plot.background = element_rect(fill = "gray90"),
+        panel.background = element_rect(fill = "slategray1"),
+        panel.border = element_blank(),
+        panel.grid = element_blank(),
+        legend.background = element_rect(fill = "gray90"), plot.caption.position = "plot",
+        legend.text = element_text(family = text_font),
+        axis.title = element_blank()
+        )
+  
+```
+
+```{r}
+library(here)
+ggsave(here("Plots", "erasmusmobility.jpg"), width = 12, height =6)
+```
+
