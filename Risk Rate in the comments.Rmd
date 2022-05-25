@@ -1,0 +1,67 @@
+---
+title: "Plot Rates"
+author: "Enes"
+date: "5/25/2022"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(tm)
+library(here)
+```
+
+```{r}
+reviews <- read_csv("olist_order_reviews_dataset.csv") 
+```
+
+```{r}
+library(scales)
+library(lubridate)
+risk_bytime <- proportions_table %>%
+  left_join(items, by= "order_id") %>%
+  add_count(seller_id) %>%
+  mutate(risk = Topic1 + Topic12 + Topic13 + Topic18 + Topic20 + Topic24) %>%
+  filter(n > 400) %>% 
+  arrange(review_creation_date) %>%
+  mutate(review_creation_date = floor_date(review_creation_date, unit = "week")) %>%
+  arrange(risk) 
+#mutate(daily_proportion = )
+  ggplot(aes(review_creation_date, risk)) +
+  geom_col() +
+  scale_y_continuous(labels = label_percent()) +
+  #facet_wrap(~seller_id, ncol = 4, nrow = 4, scales = "fixed") +
+  theme_minimal() 
+
+###süperrrr
+
+plot <- risk_bytime %>%
+  select(review_creation_date, risk, n, seller_id) %>%
+  arrange(review_creation_date) %>%
+  group_by(seller_id) %>%
+  mutate(num = row_number(seller_id)) %>%
+  group_by(seller_id) %>%
+  mutate(sum = cumsum(risk)) %>%
+  mutate(risk_per_week = sum / num) %>%
+  ggplot(aes(review_creation_date, risk_per_week)) +
+  geom_point(size = 0.4, color = "red") +
+  facet_wrap(~n) 
+  
+plot + 
+  labs(title = "Percentage of risk-related comments through 2017-2018",
+       subtitle = "9 stores that got the most reviews, and their rate of risk-related topics in the comments.",
+       caption = "Dataviz: Enes Capkin, Source:Kaggle Brazilian E-commerce",
+       x = "Review Creation Date (by week)",
+       y = "Risk Rate in the Comments"
+       )+
+  theme(panel.background = element_rect(fill = "azure2" ),
+        plot.background = element_rect(fill = "floralwhite"),
+        axis.title.y = element_text(vjust = 2),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 14)
+          )
+library(here)
+ggsave(here("Plots", "Risk Rates in the comments.jpg"), width = 12, height = 9)
+```
+
