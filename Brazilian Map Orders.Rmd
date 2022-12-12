@@ -1,0 +1,97 @@
+---
+title: "map"
+author: "Enes"
+date: "12/12/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggmap)
+library(tidyverse)
+library(mapdata)
+library(sf)
+library(rnaturalearth)
+library(ggthemes)
+library(geosphere)
+
+sellers_joined_with_customers_witoth_comments <- reviews %>%
+  left_join(items, by= "order_id") %>%
+  left_join(seller_unique_geo, by="seller_id") %>%
+  left_join(orders, by = "order_id") %>%
+  left_join(customers_unique_zip, by= "customer_id") %>%
+  add_count(seller_id, sort = T) 
+  
+ 
+
+
+sellers_joined_with_customers_witoth_comments %>%
+  mutate(distance = distm(x = unlist(c(sellers_joined_with_customers_witoth_comments[,c("seller_geo_lng", "seller_geo_lat")])), 
+         y = unlist(c(sellers_joined_with_customers_witoth_comments[, c("customer_lng", "customer_lat")]), 
+               fun = distHaversine)))
+
+
+
+
+seller1_ <- sellers_joined_with_customers_witoth_comments %>%
+  mutate(distance = distHaversine(cbind(seller_geo_lng, seller_geo_lat), cbind(customer_lng, customer_lat))) %>%
+  mutate(distance_km = round(distance/1000, digits = 1)) %>%
+  filter(seller_id == "88460e8ebdecbfecb5f9601833981930") %>%
+  filter(review_creation_date < "2018-03-25")
+```
+
+
+```{r}
+geolocation <- geolocation %>%
+  mutate(subunit = "Brazil")
+
+brazil <- ne_countries(scale = "medium", returnclass = "sf") %>%
+  filter(name == "Brazil") %>%
+  select(wb_a2, subunit)
+
+map <- seller1 %>%
+  distinct(order_id, .keep_all = T) %>% 
+  mutate(subunit = "Brazil") %>%
+  left_join(brazil, by = "subunit") 
+
+
+map %>%
+  count(order_id, sort = T)
+
+geolocation %>%
+  left_join(brazil, by = "subunit") %>%
+  count(geolocation_zip_code_prefix, sort = T)
+  
+x <- ggplot(map) +
+  geom_sf(data = brazil, aes(geometry = geometry), colour = "snow3", lwd = 0.5) +
+  geom_point(aes(x =customer_lng, y= customer_lat, color = factor(customer_state)), size = 0.1) +
+  coord_sf(xlim = c(-75,-30), ylim = c(10,-40)) +
+  theme(panel.background = element_rect(fill = "slategray1") , 
+        panel.border = element_blank(),
+        panel.grid = element_blank(),
+        axis.title = element_blank()
+        )+
+  labs(color = "States" ,
+       title = "Every Individual Order Made") +
+  theme_fivethirtyeight()
+
+ggsave(here("Plots", "map-orders.jpg"))
+
+install.packages("RColorBrewer")
+
+colourCount = length(unique(map$customer_state))
+getPalette = colorRampPalette(brewer_pal(9, "Set1"))
+
+
+map %>%
+  add_count(seller_state) %>%
+  mutate(total = 98673,
+         order = "total order") %>%
+  ggplot(aes(fill=customer_state, y=total, x=order)) + 
+    geom_bar(position="stack", stat="identity") +
+  scale_fill_brewer(palette="Paired")
+```
+
