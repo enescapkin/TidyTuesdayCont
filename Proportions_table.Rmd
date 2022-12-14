@@ -1,0 +1,48 @@
+---
+title: "Proportions Table"
+author: "Enes"
+date: "12/14/2022"
+output: html_document
+---
+
+```{r}
+
+#proportions table object is coming from a STM-model. It is the proportions of every topic in every document present in the data.
+
+proportions_table %>% 
+  pivot_longer(cols = starts_with("Topic"), names_to = "Topics", values_to = "Proportion") %>%
+  mutate(review_creation_date = floor_date(review_creation_date, unit = "month")) %>%
+  group_by(Topics) %>%
+  arrange(review_creation_date)%>%
+  mutate(num = row_number(Topics)) %>%
+  select(review_creation_date, Topics, Proportion, num) %>%
+  group_by(Topics) %>%
+  mutate(summ = cumsum(Proportion)) %>%
+  ungroup() %>%
+  group_by(review_creation_date, Topics) %>%
+  summarize(Proportion = sum(Proportion),
+            num = sum(num),
+            summ = sum(summ)) %>%
+  mutate(perce = summ/num) %>%
+  ggplot(aes(review_creation_date, perce)) +
+  geom_line(color = "deepskyblue2", size = 1.5) +
+  facet_wrap(~Topics, scales = "free_y") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(),
+        title = element_text(),
+        axis.text.x = element_text(angle = 45,vjust = 0.5)) +
+  labs(x = "Review Creation Date",
+        y = "Proportion of Topic",
+        title = "Monthly Proportion Changes in the Topics",
+        subtitle = "Total of 32.227 Reviews through the years of 2016-2018")
+
+
+
+ggsave(here("Plots", "Monthly Changes in Proportion3.jpg"), width = 12, height = 7)
+
+reviews %>% 
+  left_join(orders, by="order_id") %>%
+  left_join(customers, by="customer_id") %>%
+  count(customer_city, sort= T)
+```
+
